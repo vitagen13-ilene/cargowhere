@@ -1,0 +1,6 @@
+{
+  "name": "SG Carpark Live",
+  "description": "Real-time Singapore car park lots availability tracker powered by live Data.gov.sg and LTA open transport data.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
