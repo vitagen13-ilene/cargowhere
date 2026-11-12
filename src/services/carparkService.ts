@@ -9,14 +9,28 @@ import { INITIAL_CARPARKS } from '../data/singaporeCarparksData';
  * In future backend deployment, replace DATA_GOV_API_URL or forward requests
  * to your own Express/FastAPI proxy (e.g. `/api/carparks/availability`).
  */
+export const LTA_DATAMALL_SERVERLESS_URL = '/api/carparkavailability';
 export const DATA_GOV_API_URL = 'https://api.data.gov.sg/v1/transport/carpark-availability';
 
 export interface CarparkSyncResult {
   carparks: Carpark[];
   lastUpdated: Date;
-  source: 'api' | 'fallback';
+  source: 'lta' | 'api' | 'fallback';
   totalMonitoredLots: number;
   totalAvailableLots: number;
+}
+
+/**
+ * Check backend health status and whether LTA_ACCOUNT_KEY is configured
+ */
+export async function checkLTAHealth(): Promise<{ status: string; ltaKeyConfigured: boolean } | null> {
+  try {
+    const res = await fetch('/api/health');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -52,22 +66,96 @@ export function calculateDistanceKm(
 }
 
 /**
- * Fetches real-time lot availability from Data.gov.sg
- * Falls back gracefully to realistic dynamic updates if the API is unreachable or rate limited.
+ * Fetches real-time lot availability.
+ * Priority:
+ * 1. /api/carparkavailability (LTA DataMall v2 serverless route)
+ * 2. Data.gov.sg open public endpoint
+ * 3. Graceful realistic simulation fallback
  */
 export async function fetchLiveCarparkAvailability(
   currentCarparks: Carpark[] = INITIAL_CARPARKS,
   userCoords?: { lat: number; lng: number } | null
 ): Promise<CarparkSyncResult> {
+  // 1. Try serverless LTA DataMall route first
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    const ltaResponse = await fetch(LTA_DATAMALL_SERVERLESS_URL, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    clearTimeout(timeoutId);
+
+    if (ltaResponse.ok) {
+      const ltaData = await ltaResponse.json();
+      if (Array.isArray(ltaData.value) && ltaData.value.length > 0) {
+        const ltaMap = new Map<string, { car?: number; moto?: number }>();
+
+        for (const item of ltaData.value) {
+          const id = (item.CarParkID || '').toUpperCase();
+          const lots = Number(item.AvailableLots) || 0;
+          const current = ltaMap.get(id) || {};
+          if (item.LotType === 'C') current.car = lots;
+          else if (item.LotType === 'Y') current.moto = lots;
+          ltaMap.set(id, current);
+        }
+
+        const updatedCarparks: Carpark[] = currentCarparks.map((cp) => {
+          const match = ltaMap.get(cp.id.toUpperCase());
+          let carAvail = cp.lots.car.available;
+          let motoAvail = cp.lots.motorcycle.available;
+
+          if (match) {
+            if (match.car !== undefined) carAvail = match.car;
+            if (match.moto !== undefined) motoAvail = match.moto;
+          }
+
+          const carTot = cp.lots.car.total;
+          const occ = carTot > 0 ? Math.round(((carTot - carAvail) / carTot) * 100) : 0;
+          const status = determineStatus(carAvail, carTot);
+          const distanceKm = userCoords
+            ? calculateDistanceKm(userCoords.lat, userCoords.lng, cp.lat, cp.lng)
+            : undefined;
+
+          return {
+            ...cp,
+            lots: {
+              ...cp.lots,
+              car: { total: carTot, available: carAvail },
+              motorcycle: { total: cp.lots.motorcycle.total, available: motoAvail },
+            },
+            occupancyRate: occ,
+            status,
+            updateTime: ltaData.fetchedAt || new Date().toISOString(),
+            distanceKm,
+          };
+        });
+
+        const totalMonitoredLots = updatedCarparks.reduce((sum, cp) => sum + cp.lots.car.total, 0);
+        const totalAvailableLots = updatedCarparks.reduce((sum, cp) => sum + cp.lots.car.available, 0);
+
+        return {
+          carparks: updatedCarparks,
+          lastUpdated: new Date(ltaData.fetchedAt || Date.now()),
+          source: 'lta',
+          totalMonitoredLots,
+          totalAvailableLots,
+        };
+      }
+    }
+  } catch {
+    // Continue to Data.gov.sg fallback
+  }
+
+  // 2. Try Data.gov.sg open endpoint
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     const response = await fetch(DATA_GOV_API_URL, {
       signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-      },
+      headers: { Accept: 'application/json' },
     });
 
     clearTimeout(timeoutId);
@@ -128,18 +216,15 @@ export async function fetchLiveCarparkAvailability(
         if (govData.motoAvailable !== undefined) motoAvail = govData.motoAvailable;
         if (govData.motoTotal !== undefined && govData.motoTotal > 0) motoTot = govData.motoTotal;
       } else {
-        // If this commercial mall or specific carpark is not directly in HDB feed, apply realistic micro variance
-        const delta = Math.floor(Math.random() * 5) - 2; // -2 to +2
+        const delta = Math.floor(Math.random() * 5) - 2;
         carAvail = Math.max(0, Math.min(carTot, carAvail + delta));
       }
 
       const occupancyRate = carTot > 0 ? Math.round(((carTot - carAvail) / carTot) * 100) : 0;
       const status = determineStatus(carAvail, carTot);
-
-      let distanceKm: number | undefined;
-      if (userCoords) {
-        distanceKm = calculateDistanceKm(userCoords.lat, userCoords.lng, cp.lat, cp.lng);
-      }
+      const distanceKm = userCoords
+        ? calculateDistanceKm(userCoords.lat, userCoords.lng, cp.lat, cp.lng)
+        : undefined;
 
       return {
         ...cp,
@@ -166,7 +251,8 @@ export async function fetchLiveCarparkAvailability(
       totalAvailableLots,
     };
   } catch {
-    // Graceful fallback: simulated realistic live fluctuation for offline / sandbox resiliency
+    // 3. Graceful fallback with realistic simulation
+
     const simulatedCarparks: Carpark[] = currentCarparks.map((cp) => {
       // Natural fluctuation: +/- 1 to 4 lots
       const change = Math.floor(Math.random() * 7) - 3;

@@ -5,7 +5,7 @@ interface NavbarProps {
   lastUpdated: Date;
   isRefreshing: boolean;
   onRefresh: () => void;
-  dataSource: 'api' | 'fallback';
+  dataSource: 'lta' | 'api' | 'fallback';
   darkMode: boolean;
   onToggleDarkMode: () => void;
   favoritesCount: number;
@@ -32,6 +32,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     second: '2-digit',
   });
 
+  const sourceLabel =
+    dataSource === 'lta'
+      ? 'LTA DataMall v2'
+      : dataSource === 'api'
+      ? 'Data.gov.sg'
+      : 'Live Sync';
+
   return (
     <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -48,7 +55,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Singapore Real-Time Lots</span>
                 <span aria-hidden="true">·</span>
-                <span className="font-mono">{dataSource === 'api' ? 'Data.gov.sg' : 'Live Sync'}</span>
+                <span className={`font-mono ${dataSource === 'lta' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : ''}`}>
+                  {sourceLabel}
+                </span>
               </div>
             </div>
           </div>

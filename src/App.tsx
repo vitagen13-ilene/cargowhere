@@ -29,7 +29,7 @@ export default function App() {
   const [carparks, setCarparks] = useState<Carpark[]>(INITIAL_CARPARKS);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [dataSource, setDataSource] = useState<'api' | 'fallback'>('api');
+  const [dataSource, setDataSource] = useState<'lta' | 'api' | 'fallback'>('api');
   const [totalMonitoredLots, setTotalMonitoredLots] = useState<number>(0);
   const [totalAvailableLots, setTotalAvailableLots] = useState<number>(0);
 

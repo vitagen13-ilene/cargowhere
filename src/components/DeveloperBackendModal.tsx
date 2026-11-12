@@ -133,40 +133,57 @@ async def get_availability():
           {activeTab === 'overview' && (
             <div className="space-y-3">
               <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-200">
-                <strong className="block font-semibold mb-1">Clean Architectural Boundary:</strong>
-                This frontend is completely modular. All data fetching is isolated in{' '}
-                <code className="bg-emerald-100 dark:bg-emerald-900 px-1 py-0.5 rounded font-mono text-[11px]">
-                  src/services/carparkService.ts
-                </code>
-                . Currently it connects to Singapore's official Data.gov.sg API and includes rich catalog metadata.
+                <strong className="block font-semibold mb-1">Serverless Connection Active:</strong>
+                Live serverless endpoints are installed in the root <code className="bg-emerald-100 dark:bg-emerald-900 px-1 py-0.5 rounded font-mono text-[11px]">/api</code> directory:
+                <div className="mt-2 space-y-1 font-mono text-[11px]">
+                  <div>• <strong className="text-emerald-700 dark:text-emerald-300">/api/carparkavailability</strong>: LTA DataMall v2 OData proxy</div>
+                  <div>• <strong className="text-emerald-700 dark:text-emerald-300">/api/health</strong>: Serverless health & key validation status</div>
+                </div>
               </div>
 
               <h4 className="font-bold text-slate-900 dark:text-white text-sm">
-                How to integrate your custom backend:
+                Configuring your LTA DataMall Account Key:
               </h4>
               <ol className="list-decimal pl-5 space-y-2 text-slate-600 dark:text-slate-300">
                 <li>
-                  <strong>Step 1:</strong> In <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono">src/services/carparkService.ts</code>, update:
+                  <strong>Step 1:</strong> Obtain your free API key from{' '}
+                  <a
+                    href="https://datamall.lta.gov.sg/content/datamall/en.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 underline font-medium"
+                  >
+                    LTA DataMall
+                  </a>.
+                </li>
+                <li>
+                  <strong>Step 2:</strong> Set your key in your environment variable:
                   <div className="mt-1 p-2 bg-slate-900 text-slate-200 font-mono rounded text-[11px]">
-                    export const DATA_GOV_API_URL = '/api/carparks/availability';
+                    LTA_ACCOUNT_KEY="YOUR_ACTUAL_LTA_KEY"
                   </div>
                 </li>
                 <li>
-                  <strong>Step 2:</strong> Implement caching on your backend (e.g. 60 seconds TTL) because Singapore Data.gov.sg and LTA Datamall refresh their lot availability approximately every 1 minute.
-                </li>
-                <li>
-                  <strong>Step 3 (Optional):</strong> To sync private commercial malls or additional sensor lots (e.g. CapitaLand / Frasers malls), your backend can merge the official HDB feed with private mall partner feeds.
+                  <strong>Step 3:</strong> Once configured, <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono">/api/carparkavailability</code> automatically queries <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono">https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2</code> with the required <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded font-mono">AccountKey</code> header, handles pagination, and serves cached responses.
                 </li>
               </ol>
 
-              <div className="pt-2 flex items-center gap-2">
+              <div className="pt-2 flex items-center gap-4">
                 <a
-                  href="https://beta.data.gov.sg/datasets/d_222f77c51e065ff4a4eb9857d427d142/view"
+                  href="/api/health"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
+                >
+                  <span>Test /api/health</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href="/api/carparkavailability"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-medium"
                 >
-                  <span>Data.gov.sg Carpark Availability Documentation</span>
+                  <span>Test /api/carparkavailability</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
